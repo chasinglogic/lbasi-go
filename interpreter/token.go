@@ -1,6 +1,25 @@
 package interpreter
 
+import "fmt"
+
 type TokenType int
+
+func (tt TokenType) String() string {
+	switch tt {
+	case ADD:
+		return "+"
+	case SUB:
+		return "-"
+	case DIV:
+		return "/"
+	case MUL:
+		return "*"
+	case INT:
+		return "INTEGER"
+	default:
+		return "EOF"
+	}
+}
 
 const (
 	ADD TokenType = iota
@@ -18,17 +37,25 @@ type Token struct {
 	Value string
 }
 
-func Op(c rune) Token {
+func Op(c string) Token {
 	switch c {
-	case '+':
+	case "+":
 		return Token{ADD, "+"}
-	case '-':
+	case "-":
 		return Token{SUB, "-"}
-	case '*':
+	case "*":
 		return Token{MUL, "*"}
-	case '/':
+	case "/":
 		return Token{DIV, "/"}
 	default:
 		return Token{EOF, ""}
 	}
+}
+
+func isOpToken(tt TokenType) bool {
+	return tt == ADD || tt == SUB || tt == MUL || tt == DIV
+}
+
+func (t Token) String() string {
+	return fmt.Sprintf("Token(%s, %s)", t.Type.String(), t.Value)
 }
