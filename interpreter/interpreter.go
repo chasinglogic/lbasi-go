@@ -1,120 +1,142 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
 
-type Interpreter struct {
-	Body         []rune
-	POS          int
+type Parser struct {
 	CurrentToken Token
-	CurrentChar  *rune
+}
+
+type Interpreter struct {
+	Parser Parser
+	Err    error
 }
 
 func New(expr string) Interpreter {
-	return Interpreter{
-		Body: []rune(expr),
-		POS:  0,
+	i := Interpreter{
+		Lexer: NewLexer(expr),
 	}
+
+	return i
 }
 
-func (i *Interpreter) getNextToken() Token {
-	for i.CurrentChar != nil {
-		if isWhitespace(*i.CurrentChar) {
-			i.skipWhitespace()
+func (p *Parser) getNextToken() Token {
+	for p.CurrentChar != 0 {
+		if isWhitespace(p.CurrentChar) {
+			p.skipWhitespace()
 			continue
 		}
 
-		if isNumber(*i.CurrentChar) {
-			return Token{INT, i.term()}
+		if isNumber(p.CurrentChar) {
+			return Token{INT, p.term()}
 		}
 
-		return Op(*i.CurrentChar)
+		return Op(p.term())
 	}
 
 	return Token{EOF, ""}
 }
 
-func (i *Interpreter) advance() {
-	i.POS += 1
+func (p *Parser) advance() {
+	p.POS += 1
 
-	if i.POS > len(i.Body) {
-		i.CurrentChar = nil
+	if p.POS >= len(p.Body) {
+		p.CurrentChar = 0
+		return
 	}
 
-	i.CurrentChar = &i.Body[i.POS]
+	p.CurrentChar = p.Body[p.POS]
 }
 
-func (i *Interpreter) error() {
-	fmt.Println("Error parsing input character: %v @ %d", i.CurrentChar, i.POS)
-	os.Exit(1)
+func (i *Interpreter) error(msgs ...string) error {
+	errMsg := fmt.Sprintf("Error parsing input: %s @ %d", string(p.CurrentChar), p.POS)
+
+	if msgs != nil {
+		for _, m := range msgs {
+			errMsg += "\n" + m
+		}
+	}
+
+	i.Err = errors.New(errMsg)
+	return i.Err
 }
 
-func (i *Interpreter) skipWhitespace() {
-	for i.CurrentChar != nil && !strings.Contains(" \n\t", string(*i.CurrentChar)) {
-		i.advance()
+func (p *Parser) skipWhitespace() {
+	for p.CurrentChar != 0 && strings.Contains(" \n\t", string(p.CurrentChar)) {
+		p.advance()
 	}
 }
 
-func (i *Interpreter) term() string {
-	result := []rune{}
+func (p *Parser) term() string {
+	result := []rune{p.CurrentChar}
+	p.advance()
 
-	for i.CurrentChar != nil && !strings.Contains(" \n", string(*i.CurrentChar)) {
-		result = append(result, *i.CurrentChar)
+	for p.CurrentChar != 0 && !strings.Contains(" \n", string(p.CurrentChar)) {
+		result = append(result, p.CurrentChar)
+		p.advance()
 	}
 
 	return string(result)
 }
 
-func (i *Interpreter) Eat(t TokenType) {
-	if i.CurrentToken.Type == t {
-		i.CurrentToken = i.getNextToken()
-		return
+func (p *Parser) Eat(t TokenType) error {
+	if p.CurrentToken.Type == t {
+		p.CurrentToken = p.getNextToken()
+		return nil
 	}
 
-	i.error()
+	return errors.New("Expected token type: " + t.String())
 }
 
-func (i *Interpreter) Expr() int {
-	i.CurrentToken = i.getNextToken()
+func (p *Interpreter) ExprNoErr() int {
+	ans, _ := p.Expr()
+	return ans
+}
 
-	left := i.CurrentToken
-	i.Eat(INT)
-
-	op := i.CurrentToken
-	switch op.Type {
-	case ADD:
-		i.Eat(ADD)
-	case SUB:
-		i.Eat(SUB)
-	case MUL:
-		i.Eat(MUL)
-	case DIV:
-		i.Eat(DIV)
-	default:
-		i.error()
+func (p *Parser) int() (int, error) {
+	token := p.CurrentToken
+	err := p.Eat(INT)
+	if err != nil {
+		return 0, err
 	}
 
-	right := i.CurrentToken
-	i.Eat(INT)
+	return strconv.Atoi(token.Value)
+}
 
-	l, _ := strconv.Atoi(left.Value)
-	r, _ := strconv.Atoi(right.Value)
+func (i *Interpreter) Expr() (int, error) {
+	i.Parser.CurrentToken = i.Parser.getNextToken()
 
-	switch op.Type {
-	case ADD:
-		return l + r
-	case SUB:
-		return l - r
-	case MUL:
-		return l * r
-	case DIV:
-		return l / r
-	default:
-		return 0
+	result, err := i.Parser.int()
+	if err != nil {
+		return 0, i.error(err.Error())
 	}
 
+	for isOpToken(i.Parser.CurrentToken.Type) {
+		op := i.Parser.CurrentToken
+		i.Parser.CurrentToken = i.Parser.getNextToken()
+
+		next, err := i.Parser.int()
+		if err != nil {
+			return 0, i.error(err.Error())
+		}
+
+		switch op.Type {
+		case ADD:
+			result = result + next
+		case SUB:
+			result = result - next
+		case MUL:
+			result = result * next
+		case DIV:
+			result = result / next
+		default:
+			return 0, i.error("Invalid operation.")
+		}
+	}
+
+	return result, nil
 }
