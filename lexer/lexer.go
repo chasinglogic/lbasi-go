@@ -1,6 +1,10 @@
 package lexer
 
-import "github.com/chasinglogic/lbasi/token"
+import (
+	"fmt"
+
+	"github.com/chasinglogic/lbasi/token"
+)
 
 type Lexer struct {
 	input        string
@@ -57,6 +61,7 @@ func (l *Lexer) NextToken() token.Token {
 
 	l.skipWhitespace()
 
+	fmt.Println("lex:", string(l.ch))
 	switch l.ch {
 	case '=':
 		if l.peekChar() == '=' {
